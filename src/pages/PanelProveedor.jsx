@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   TrendingUp, Calendar, DollarSign, Star, CheckCircle,
-  QrCode, Crown, ArrowUp, BarChart3, Clock, MapPin, Download, User
+  QrCode, Crown, ArrowUp, BarChart3, Clock, MapPin, Download, User,
+  Camera, Play
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { listar as listarContratos, checkin, descargarPDF } from '../services/contratos';
+import { subirMedia, eliminarMedia, reordenarMedia } from '../services/proveedores';
 import api from '../services/api';
 import CalendarioDisponibilidad from '../components/CalendarioDisponibilidad';
 import { showToast } from '../components/Toast';
@@ -173,65 +175,76 @@ export default function PanelProveedor() {
     }
   };
 
-  const handleSubirArchivo = async (e, tipo) => {
+  // Estados para selector de archivo, preview y progreso
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState('');
+  const [progreso, setProgreso] = useState(0);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  const handleSelectFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setErrorGallery('');
 
     // Validar en cliente
-    if (tipo === 'foto') {
-      const allowedExts = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedExts.includes(file.type)) {
-        setErrorGallery('Formato de imagen no permitido. Solo se aceptan jpg, png y webp.');
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) { // 5MB
-        setErrorGallery('La imagen excede el tamaño máximo permitido de 5MB.');
-        return;
-      }
-      // Verificar cantidad máxima
-      const currentPhotos = galleryMedia.filter(m => m.tipo === 'foto').length;
-      if (currentPhotos >= 10) {
-        setErrorGallery('Has alcanzado el límite máximo de 10 fotos.');
-        return;
-      }
-    } else if (tipo === 'video') {
-      if (file.type !== 'video/mp4') {
-        setErrorGallery('Formato de video no permitido. Solo se acepta mp4.');
-        return;
-      }
-      if (file.size > 50 * 1024 * 1024) { // 50MB
-        setErrorGallery('El video excede el tamaño máximo permitido de 50MB.');
-        return;
-      }
-      // Verificar cantidad máxima
-      const currentVideos = galleryMedia.filter(m => m.tipo === 'video').length;
-      if (currentVideos >= 3) {
-        setErrorGallery('Has alcanzado el límite máximo de 3 videos.');
+    const isVideo = file.type.startsWith('video/') || file.name.endsWith('.mp4') || file.name.endsWith('.mov');
+    const allowedImageExts = ['image/jpeg', 'image/png', 'image/webp'];
+
+    if (!isVideo && !allowedImageExts.includes(file.type)) {
+      showToast('Formato de imagen no permitido. Solo se aceptan jpg, png y webp.', 'error');
+      return;
+    }
+    if (isVideo) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (ext !== 'mp4' && ext !== 'mov') {
+        showToast('Formato de video no permitido. Solo se aceptan mp4 y mov.', 'error');
         return;
       }
     }
 
+    const limit = isVideo ? 50 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (file.size > limit) {
+      showToast(`El archivo supera el límite de ${isVideo ? '50MB' : '5MB'}.`, 'error');
+      return;
+    }
+
+    if (galleryMedia.length >= 12) {
+      showToast('Has alcanzado el límite máximo de 12 archivos en tu galería.', 'error');
+      return;
+    }
+
+    setSelectedFile(file);
+    const url = URL.createObjectURL(file);
+    setPreviewUrl(url);
+  };
+
+  const ejecutarSubida = async () => {
+    if (!selectedFile) return;
     setSubiendo(true);
+    setProgreso(0);
+    setErrorGallery('');
+
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', selectedFile);
+    formData.append('orden', galleryMedia.length);
 
     try {
-      const res = await api.post(`/proveedores/${proveedor.id}/media`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      const res = await subirMedia(proveedor.id, formData, (progressEvent) => {
+        const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setProgreso(pct);
       });
-      setGalleryMedia(prev => [res.data, ...prev]);
-      showToast('Archivo subido con éxito', 'success');
+      setGalleryMedia(prev => [...prev, res.data]);
+      showToast('Archivo subido con éxito.', 'success');
+      setSelectedFile(null);
+      setPreviewUrl('');
     } catch (err) {
-      const errMsg = err.response?.data?.error || err.response?.data?.message || err.message || 'Error al subir el archivo';
+      const errMsg = err.response?.data?.error || err.message || 'Error al subir el archivo';
       setErrorGallery(errMsg);
       showToast(errMsg, 'error');
     } finally {
       setSubiendo(false);
-      e.target.value = ''; // limpiar input
+      setProgreso(0);
     }
   };
 
@@ -239,11 +252,47 @@ export default function PanelProveedor() {
     if (!window.confirm('¿Estás seguro de que deseas eliminar este archivo?')) return;
 
     try {
-      await api.delete(`/proveedores/media/${mediaId}`);
+      await eliminarMedia(proveedor.id, mediaId);
       setGalleryMedia(prev => prev.filter(m => m.id !== mediaId));
       showToast('Archivo eliminado', 'success');
     } catch (err) {
       showToast(err.response?.data?.error || 'Error al eliminar el archivo', 'error');
+    }
+  };
+
+  // Drag & Drop
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+  };
+
+  const handleDragEnter = (e, index) => {
+    if (draggedIndex === null || draggedIndex === index) return;
+    
+    const reordered = [...galleryMedia];
+    const draggedItem = reordered[draggedIndex];
+    reordered.splice(draggedIndex, 1);
+    reordered.splice(index, 0, draggedItem);
+    
+    setDraggedIndex(index);
+    setGalleryMedia(reordered);
+  };
+
+  const handleDragEnd = async () => {
+    setDraggedIndex(null);
+    const mediaOrden = galleryMedia.map((item, idx) => ({
+      id: item.id,
+      orden: idx
+    }));
+    try {
+      await reordenarMedia(proveedor.id, mediaOrden);
+      showToast('Orden de galería actualizado.', 'success');
+    } catch (err) {
+      showToast('Error al guardar el nuevo orden de la galería.', 'error');
     }
   };
 
@@ -562,104 +611,134 @@ export default function PanelProveedor() {
             {/* Mi Galería */}
             <div>
               <h2 className="text-base font-bold text-navy mb-4">Mi galería</h2>
-              <div className="card p-6">
+              <div className="card p-6 bg-white border border-gray-100 shadow-sm rounded-2xl">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <p className="text-xs text-gray-500 mt-0.5">Sube fotos y videos para promocionar tu trabajo de cara a los clientes</p>
+                    <p className="text-xs text-gray-500">
+                      Sube fotos y videos para promocionar tu trabajo (máximo 12 archivos).
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      Formatos permitidos: jpg, png, webp (máx. 5MB) · mp4, mov (máx. 50MB).
+                    </p>
                   </div>
-                <div className="flex items-center gap-2">
-                  <label className="btn-secondary py-2 px-3 text-xs cursor-pointer flex items-center gap-1.5 hover:bg-gray-100 transition-colors">
-                    <span>Subir foto</span>
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      onChange={(e) => handleSubirArchivo(e, 'foto')}
-                      disabled={subiendo}
-                    />
-                  </label>
-                  <label className="btn-primary py-2 px-3 text-xs cursor-pointer flex items-center gap-1.5">
-                    <span>Subir video</span>
-                    <input
-                      type="file"
-                      accept="video/mp4"
-                      className="hidden"
-                      onChange={(e) => handleSubirArchivo(e, 'video')}
-                      disabled={subiendo}
-                    />
-                  </label>
+                  <div className="shrink-0">
+                    <label className="btn-primary py-2.5 px-4 text-xs cursor-pointer flex items-center justify-center gap-2">
+                      <Camera size={14} />
+                      <span>Subir foto o video</span>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
+                        className="hidden"
+                        onChange={handleSelectFile}
+                        disabled={subiendo}
+                      />
+                    </label>
+                  </div>
                 </div>
+
+                {/* Previsualización del archivo seleccionado */}
+                {previewUrl && (
+                  <div className="mb-6 p-4 border border-dashed border-primary/20 rounded-xl bg-blue-50/20 text-center max-w-sm mx-auto">
+                    <p className="text-xs text-gray-500 font-semibold mb-3">Vista previa del archivo seleccionado</p>
+                    <div className="aspect-square w-48 h-48 mx-auto rounded-xl overflow-hidden bg-black mb-4 relative">
+                      {selectedFile?.type.startsWith('video/') || selectedFile?.name.endsWith('.mp4') || selectedFile?.name.endsWith('.mov') ? (
+                        <video src={previewUrl} className="w-full h-full object-contain" controls />
+                      ) : (
+                        <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      )}
+                    </div>
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => { setSelectedFile(null); setPreviewUrl(''); }}
+                        className="btn-secondary py-1.5 px-3 text-xs"
+                        disabled={subiendo}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        onClick={ejecutarSubida}
+                        className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1"
+                        disabled={subiendo}
+                      >
+                        {subiendo ? 'Subiendo...' : 'Subir archivo'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Barra de progreso */}
+                {subiendo && (
+                  <div className="mb-6 max-w-sm mx-auto">
+                    <div className="flex justify-between text-xs text-gray-500 font-semibold mb-1">
+                      <span>Subiendo archivo...</span>
+                      <span>{progreso}%</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden border border-gray-200/50">
+                      <div className="bg-primary h-full transition-all duration-150" style={{ width: `${progreso}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {errorGallery && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3.5 mb-4 text-xs font-semibold">
+                    {errorGallery}
+                  </div>
+                )}
+
+                {galleryMedia.length === 0 ? (
+                  <div className="text-center py-12 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 flex flex-col items-center justify-center">
+                    <Camera size={32} className="text-gray-300 mb-2" />
+                    <p className="text-sm text-gray-500 font-medium">No has subido ningún archivo a tu galería.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs font-bold text-gray-400 mb-3 uppercase tracking-wider">
+                      Galería del perfil ({galleryMedia.length}/12) — Arrastra para reordenar
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {galleryMedia.map((item, idx) => (
+                        <div
+                          key={item.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, idx)}
+                          onDragOver={(e) => handleDragOver(e, idx)}
+                          onDragEnter={(e) => handleDragEnter(e, idx)}
+                          onDragEnd={handleDragEnd}
+                          className={`aspect-square rounded-xl overflow-hidden border border-gray-100 bg-gray-50 relative group cursor-move transition-transform duration-200 ${
+                            draggedIndex === idx ? 'scale-95 opacity-50 border-primary ring-2 ring-primary/20' : ''
+                          }`}
+                        >
+                          {item.tipo === 'video' ? (
+                            <>
+                              <video
+                                src={item.url}
+                                className="w-full h-full object-cover pointer-events-none"
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+                                  <Play size={14} className="text-navy fill-navy ml-0.5" />
+                                </div>
+                              </div>
+                            </>
+                          ) : (
+                            <img src={item.url} alt="Gallery item" className="w-full h-full object-cover pointer-events-none" />
+                          )}
+                          <button
+                            onClick={() => handleEliminarArchivo(item.id)}
+                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                            title="Eliminar archivo"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
-
-              {subiendo && (
-                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-center gap-2 mb-4">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span className="text-xs text-blue-700 font-semibold">Subiendo archivo...</span>
-                </div>
-              )}
-
-              {errorGallery && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-4 text-xs text-red-700">
-                  {errorGallery}
-                </div>
-              )}
-
-              {galleryMedia.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-500 leading-relaxed max-w-sm mx-auto">
-                    Aún no has subido fotos. Agrega fotos de tu trabajo para atraer más clientes.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {/* Grid de Fotos */}
-                  {galleryMedia.filter(m => m.tipo === 'foto').length > 0 && (
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Fotos ({galleryMedia.filter(m => m.tipo === 'foto').length}/10)</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {galleryMedia.filter(m => m.tipo === 'foto').map(f => (
-                          <div key={f.id} className="relative aspect-square rounded-xl overflow-hidden group border border-gray-100 bg-gray-50">
-                            <img src={f.url} alt="Gallery item" className="w-full h-full object-cover" />
-                            <button
-                              onClick={() => handleEliminarArchivo(f.id)}
-                              className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md"
-                              title="Eliminar foto"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Grid de Videos */}
-                  {galleryMedia.filter(m => m.tipo === 'video').length > 0 && (
-                    <div>
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Videos ({galleryMedia.filter(m => m.tipo === 'video').length}/3)</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {galleryMedia.filter(m => m.tipo === 'video').map(v => (
-                          <div key={v.id} className="relative aspect-video rounded-xl overflow-hidden group bg-black">
-                            <video src={v.url} controls className="w-full h-full object-contain" />
-                            <button
-                              onClick={() => handleEliminarArchivo(v.id)}
-                              className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-lg p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
-                              title="Eliminar video"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
             </div>
           </div>
 

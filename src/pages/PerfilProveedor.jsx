@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Star, CheckCircle, Crown, MapPin, Calendar, ArrowRight, Phone, Mail } from 'lucide-react';
+import { Star, CheckCircle, Crown, MapPin, Calendar, ArrowRight, Phone, Mail, Play, Camera } from 'lucide-react';
 import { obtener } from '../services/proveedores';
 import { useAuth } from '../context/AuthContext';
 import CalendarioDisponibilidad from '../components/CalendarioDisponibilidad';
@@ -13,7 +13,7 @@ export default function PerfilProveedor() {
   const { user } = useAuth();
   const [proveedor, setProveedor] = useState(null);
   const [media, setMedia] = useState([]);
-  const [activePhoto, setActivePhoto] = useState(null);
+  const [activeMedia, setActiveMedia] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loginModal, setLoginModal] = useState(false);
   const [cotizacionModal, setCotizacionModal] = useState(false);
@@ -225,50 +225,43 @@ export default function PerfilProveedor() {
               <h2 className="text-base font-bold text-navy mb-4">Galería de fotos y videos</h2>
               
               {media.length === 0 ? (
-                <p className="text-sm text-gray-500 italic text-center py-4 bg-gray-50/50 rounded-xl">
-                  Este proveedor aún no ha subido fotos
-                </p>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="aspect-square bg-gray-50 rounded-xl flex items-center justify-center border border-gray-100">
+                      <Camera size={24} className="text-gray-300" />
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <div className="space-y-6">
-                  {/* Grid de 3 columnas para Fotos */}
-                  {media.filter(m => m.tipo === 'foto').length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Fotos</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                        {media.filter(m => m.tipo === 'foto').map(f => (
-                          <div
-                            key={f.id}
-                            className="aspect-square rounded-xl overflow-hidden cursor-pointer border border-gray-100 hover:opacity-90 transition-opacity bg-gray-50 relative group"
-                            onClick={() => setActivePhoto(f.url)}
-                          >
-                            <img
-                              src={f.url}
-                              alt={f.descripcion || 'Imagen del proveedor'}
-                              className="w-full h-full object-cover"
-                            />
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {media.map((item) => (
+                    <div
+                      key={item.id}
+                      className="aspect-square rounded-xl overflow-hidden cursor-pointer border border-gray-100 bg-gray-50 relative group"
+                      onClick={() => setActiveMedia(item)}
+                    >
+                      {item.tipo === 'video' ? (
+                        <>
+                          <video
+                            src={item.url}
+                            className="w-full h-full object-cover pointer-events-none"
+                            preload="metadata"
+                          />
+                          <div className="absolute inset-0 bg-black/10 flex items-center justify-center group-hover:bg-black/20 transition-colors">
+                            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-md">
+                              <Play size={18} className="text-navy fill-navy ml-0.5" />
+                            </div>
                           </div>
-                        ))}
-                      </div>
+                        </>
+                      ) : (
+                        <img
+                          src={item.url}
+                          alt={item.descripcion || 'Imagen del proveedor'}
+                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                        />
+                      )}
                     </div>
-                  )}
-
-                  {/* Grid/Listado de Videos */}
-                  {media.filter(m => m.tipo === 'video').length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Videos</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {media.filter(m => m.tipo === 'video').map(v => (
-                          <div key={v.id} className="rounded-xl overflow-hidden border border-gray-100 bg-black aspect-video">
-                            <video
-                              src={v.url}
-                              controls
-                              className="w-full h-full object-contain"
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>
@@ -571,25 +564,36 @@ export default function PerfilProveedor() {
         </form>
       </Modal>
       {/* Lightbox Modal */}
-      {activePhoto && (
+      {activeMedia && (
         <div
           className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setActivePhoto(null)}
+          onClick={() => setActiveMedia(null)}
         >
           <button
             className="absolute top-4 right-4 text-white hover:text-gray-300"
-            onClick={() => setActivePhoto(null)}
+            onClick={() => setActiveMedia(null)}
           >
             <span className="sr-only">Cerrar</span>
             <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
-          <img
-            src={activePhoto}
-            alt="Multimedia ampliada"
-            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
-          />
+          <div className="max-w-4xl max-h-[85vh] w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {activeMedia.tipo === 'video' ? (
+              <video
+                src={activeMedia.url}
+                controls
+                autoPlay
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              />
+            ) : (
+              <img
+                src={activeMedia.url}
+                alt="Multimedia ampliada"
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              />
+            )}
+          </div>
         </div>
       )}
     </div>
