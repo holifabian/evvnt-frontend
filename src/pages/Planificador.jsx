@@ -154,22 +154,28 @@ export default function Planificador() {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Tipo de evento */}
             <div>
-              <label className="label text-navy text-base font-bold mb-3">1. Tipo de evento</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                {TIPOS_EVENTO_IA.map((item) => (
+              <label className="label text-navy text-base font-bold mb-2">1. ¿Qué tipo de evento es?</label>
+              <input
+                type="text"
+                placeholder="Ej: Cumpleaños, Graduación, Boda, Quinceañera, Reunión empresarial..."
+                value={tipoEvento}
+                onChange={(e) => { setTipoEvento(e.target.value); setError(''); }}
+                className="input-field"
+                required
+              />
+              <div className="flex flex-wrap gap-2 mt-3">
+                {['Cumpleaños', 'Boda', 'Quinceañera', 'Graduación', 'Bautizo', 'Reunión empresarial', 'Fiesta infantil', 'Aniversario', 'Otros'].map((item) => (
                   <button
-                    key={item.id}
+                    key={item}
                     type="button"
-                    onClick={() => { setTipoEvento(item.id); setError(''); }}
-                    className={`p-4 rounded-xl border text-left transition-all duration-300 ${item.color} ${
-                      tipoEvento === item.id
-                        ? 'border-primary ring-2 ring-primary/20 scale-[1.02] shadow-sm'
-                        : 'border-gray-200'
+                    onClick={() => { setTipoEvento(item); setError(''); }}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                      tipoEvento === item
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-2xl block mb-2">{item.emoji}</span>
-                    <h3 className="font-bold text-navy text-sm mb-1">{item.titulo}</h3>
-                    <p className="text-xs text-gray-500 leading-snug">{item.desc}</p>
+                    {item}
                   </button>
                 ))}
               </div>
@@ -178,7 +184,7 @@ export default function Planificador() {
             {/* Fecha y Número de Invitados */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="label text-navy font-bold">2. Fecha del evento</label>
+                <label className="label text-navy font-bold">2. ¿Cuándo es tu evento? (opcional)</label>
                 <div className="relative">
                   <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                   <input
@@ -187,7 +193,6 @@ export default function Planificador() {
                     onChange={(e) => { setFecha(e.target.value); setError(''); }}
                     min={new Date(Date.now() + 86400000).toISOString().split('T')[0]} // Mínimo mañana
                     className="input-field pl-10"
-                    required
                   />
                 </div>
               </div>
@@ -233,7 +238,7 @@ export default function Planificador() {
                 value={requerimientos}
                 onChange={(e) => setRequerimientos(e.target.value)}
                 rows={3}
-                placeholder="Por ejemplo: 'Necesito que el DJ toque música rock clásico', 'decoración tematica de color azul', 'Catering con opciones vegetarianas'..."
+                placeholder="Ej: Necesito DJ con equipo de luces, fotógrafo para 3 horas, decoración temática de colores azul y blanco..."
                 className="input-field resize-none"
               />
             </div>
