@@ -181,19 +181,15 @@ export default function PerfilProveedor() {
                 <div className="flex-1">
                   <div className="flex flex-wrap items-start gap-2 mb-2">
                     <h1 className="text-xl font-black text-navy">{nombre_negocio}</h1>
-                    {verificado && (
-                      <span className="badge-verificado">
-                        <CheckCircle size={11} /> Verificado
-                      </span>
-                    )}
-                    {plan === 'premium' && (
-                      <span className="badge-premium">
-                        <Crown size={11} /> Premium
-                      </span>
-                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-3">
                     <span className="font-semibold text-primary">{categoria}</span>
+                    {verificado && (
+                      <div className="flex items-center gap-1.5 text-xs text-gray-500">
+                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block"></span>
+                        <span>Verificado</span>
+                      </div>
+                    )}
                     {ciudad && (
                       <span className="flex items-center gap-1">
                         <MapPin size={13} /> {ciudad}

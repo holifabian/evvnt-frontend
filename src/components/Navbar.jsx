@@ -50,22 +50,18 @@ export default function Navbar() {
   const isActive = (path) => location.pathname === path;
 
   const navLink = (to, label) => {
-    const isPlanner = label === 'Planificador IA';
     const isDashboard = label === 'Mi Panel';
     return (
       <Link
         to={to}
         className={`text-sm transition-colors flex items-center gap-1.5 relative ${
-          isPlanner
-            ? 'font-bold text-blue-600 hover:text-blue-700'
-            : isActive(to) ? 'font-medium text-primary' : 'font-medium text-gray-600 hover:text-navy'
+          isActive(to) ? 'font-medium text-primary' : 'font-medium text-gray-600 hover:text-navy'
         }`}
         onClick={() => setMobileOpen(false)}
       >
-        {isPlanner && <span>✨</span>}
         {label}
         {isDashboard && pendingCount > 0 && (
-          <span className="bg-red-600 text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold px-1 animate-pulse">
+          <span className="bg-red-600 text-white text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center font-bold px-1">
             {pendingCount}
           </span>
         )}
@@ -139,7 +135,7 @@ export default function Navbar() {
                   </span>
                   <ChevronDown size={14} className="text-gray-500" />
                   {pendingCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-bold px-0.5 animate-pulse">
+                    <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-bold px-0.5">
                       {pendingCount}
                     </span>
                   )}

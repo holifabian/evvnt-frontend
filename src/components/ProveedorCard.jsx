@@ -46,7 +46,13 @@ export default function ProveedorCard({ proveedor }) {
             <h3 className="font-bold text-navy text-sm leading-tight truncate group-hover:text-primary transition-colors">
               {nombre_negocio}
             </h3>
-            <div className="flex items-center gap-1.5 mt-1">
+            {verificado && (
+              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-gray-400">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block"></span>
+                <span>Verificado</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 mt-1.5">
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${colorClass}`}>
                 {icon} {categoria}
               </span>
@@ -54,20 +60,8 @@ export default function ProveedorCard({ proveedor }) {
           </div>
         </div>
 
-        {/* Badges */}
+        {/* Metadata */}
         <div className="flex flex-wrap gap-1.5 mb-3">
-          {verificado && (
-            <span className="badge-verificado">
-              <CheckCircle size={11} />
-              Verificado
-            </span>
-          )}
-          {plan === 'premium' && (
-            <span className="badge-premium">
-              <Crown size={11} />
-              Premium
-            </span>
-          )}
           {ciudad && (
             <span className="inline-flex items-center gap-1 text-xs text-gray-500">
               <MapPin size={10} />

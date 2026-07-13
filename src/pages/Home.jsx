@@ -109,9 +109,9 @@ export default function Home() {
           <div className="mt-6 flex justify-center">
             <Link
               to="/planificador"
-              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-8 py-4 rounded-xl font-extrabold text-lg shadow-lg hover:shadow-xl hover:scale-[1.03] transition-all duration-300 border border-blue-400/30"
+              className="inline-flex items-center justify-center gap-2 bg-primary text-white px-8 py-3.5 rounded-xl font-bold text-base hover:bg-accent transition-colors"
             >
-              ✨ Planificar con Inteligencia Artificial
+              Planificar con Inteligencia Artificial
             </Link>
           </div>
 
